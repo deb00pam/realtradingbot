@@ -1,0 +1,8 @@
+requests
+pandas
+numpy
+fastparquet
+plotly
+gunicorn
+flask
+scipy

@@ -1,0 +1,13 @@
+[Unit]
+Description=Trading Bot Service (Python venv)
+After=network.target
+
+[Service]
+User=x
+WorkingDirectory=/home/x/bot/
+ExecStart=/home/x/bot/venv/bin/python /home/x/bot/data.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+

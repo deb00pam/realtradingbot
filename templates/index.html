@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>BOT</title>
+    <style>
+        body { font-family: Arial; padding: 20px; background: #f9f9f9; }
+        .container { max-width: 1200px; margin: auto; }
+        select, button { padding: 8px 12px; font-size: 16px; margin: 10px 0; }
+    </style>
+    <script>
+        // Auto-refresh page every 60 seconds
+        setTimeout(function() {
+            document.getElementById('auto-refresh-form').submit();
+        }, 60000);
+    </script>
+</head>
+<body>
+<div class="container">
+    <h2>Delta Symbol Chart with Kalman Peaks/Troughs</h2>
+    <form method="post" id="auto-refresh-form">
+        <label for="symbol">Choose Symbol:</label>
+        <select name="symbol" id="symbol" onchange="document.getElementById('auto-refresh-form').submit();">
+            {% for symbol in symbols %}
+                <option value="{{ symbol }}" {% if symbol == selected %}selected{% endif %}>{{ symbol }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit">Plot</button>
+    </form>
+    {% if error %}
+        <p style="color:red;">{{ error }}</p>
+    {% endif %}
+    {{ chart | safe }}
+</div>
+</body>
+</html>
