@@ -8,5 +8,4 @@ sudo cp tradingbot.service /etc/systemd/system/
 sudo cp tradingdashboard.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl start --now tradingbot.service
-sudo systemctl start --now tradingdashboard.service
 bash run.sh

@@ -1,90 +1,83 @@
-import requests,pandas as pd,hashlib,hmac,json,time
+import websocket
+import json
+import pandas as pd
+import numpy as np
+import time
+import os
+import logging
+from scipy.signal import find_peaks
 
-def product_api():
-    response = requests.get('https://cdn.india.deltaex.org/v2/products').json()
-    data = response.get("result", [])
-    filtered = [item for item in data if item.get("contract_type") == "perpetual_futures"]
-    if filtered:
-        return pd.DataFrame(filtered)
+# Create data directory
+os.makedirs('data', exist_ok=True)
 
-base_url='https://api.india.delta.exchange'
-api_key = 'oDqXukCLyXAA8I5zgsA6VU4Pltrjpc'
-api_secret = 'yKW4lU5lMBencLblpDeLJnW1uaLU0wbWM0Zf6TtZKrJwdWMnOfN3xqajt33f'
+# WebSocket URL for Delta Exchange
+WEBSOCKET_URL = "wss://socket.india.delta.exchange"
 
-def generate_signature(secret, message):
-    message = bytes(message, 'utf-8')
-    secret = bytes(secret, 'utf-8')
-    hash = hmac.new(secret, message, hashlib.sha256)
-    return hash.hexdigest()
+# Store per-symbol data
+symbol_dataframes = {}
 
-def open_orders(api_key, api_secret):
-    method = 'GET'
-    timestamp = str(int(time.time()))
-    path = '/v2/orders'
-    url = f'{base_url}{path}'
-    query_string = '?product_id=1&state=open'
-    payload = ''
-    signature_data = method + timestamp + path + query_string + payload
-    signature = generate_signature(api_secret, signature_data)
+def on_error(ws, error):
+    print(f"WebSocket Error: {error}")
 
-    req_headers = {
-        'api-key': api_key,
-        'timestamp': timestamp,
-        'signature': signature,
-        'User-Agent': 'python-rest-client',
-        'Content-Type': 'application/json'
+def on_close(ws, close_status_code, close_msg):
+    print(f"WebSocket Closed | Status: {close_status_code}, Message: {close_msg}")
+
+def on_open(ws):
+    subscribe(ws, "candlestick_1m", ["all"])
+
+def subscribe(ws, channel, symbols):
+    payload = {
+        "type": "subscribe",
+        "payload": {
+            "channels": [
+                {
+                    "name": channel,
+                    "symbols": symbols
+                }
+            ]
+        }
     }
+    ws.send(json.dumps(payload))
 
-    query = {"product_id": 1, "state": 'open'}
+def on_message(ws, message):
+    global symbol_dataframes
 
-    response = requests.request(
-        method, url, data=payload, params=query, timeout=(3, 27), headers=req_headers
+    message_json = json.loads(message)
+    if message_json.get('type') == 'subscriptions':
+        return
+
+    df = pd.DataFrame([message_json])
+    df = df[~df['symbol'].str.startswith(('P-', 'C-'))]  # Ignore options symbols
+    df = df[['symbol', 'timestamp', 'open', 'high', 'low', 'close']]
+
+    if df.empty:
+        return
+
+    for symbol in df['symbol'].unique():
+        symbol_df = df[df['symbol'] == symbol].copy()
+        symbol_df['timestamp'] = symbol_df['timestamp'].apply(
+            lambda ts: time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(ts / 1_000_000))
+        )
+
+        if symbol not in symbol_dataframes:
+            symbol_dataframes[symbol] = symbol_df
+        else:
+            symbol_dataframes[symbol] = pd.concat([symbol_dataframes[symbol], symbol_df], ignore_index=True)
+
+        # Keep only the latest 100 data points
+        symbol_dataframes[symbol] = symbol_dataframes[symbol].tail(1000).reset_index(drop=True)
+
+            # Save to parquet
+        file_path = f"data/{symbol}.parquet"
+        symbol_dataframes[symbol].to_parquet(file_path, index=False)
+
+if __name__ == "__main__":
+    ws = websocket.WebSocketApp(
+        WEBSOCKET_URL,
+        on_message=on_message,
+        on_error=on_error,
+        on_close=on_close
     )
-    print(response)
+    ws.on_open = on_open
+    ws.run_forever()
 
-def place_order(api_key, api_secret):
-    method = 'POST'
-    timestamp = str(int(time.time()))
-    path = '/v2/orders'
-    url = f'{base_url}{path}'
-    query_string = ''
-    payload = "{\"order_type\":\"limit_order\",\"size\":3,\"side\":\"buy\",\"limit_price\":\"0.0005\",\"product_id\":27}"
-    signature_data = method + timestamp + path + query_string + payload
-    signature = generate_signature(api_secret, signature_data)
-
-    req_headers = {
-        'api-key': api_key,
-        'timestamp': timestamp,
-        'signature': signature,
-        'User-Agent': 'rest-client',
-        'Content-Type': 'application/json'
-    }
-
-    response = requests.request(
-        method, url, data=payload, params={}, timeout=(3, 27), headers=req_headers
-    )
-
-    print("Status Code:", response.status_code)
-
-def historical_data_api(timeframe, symbol, starttime, endtime):
-    params = {
-        'resolution': timeframe,
-        'symbol': symbol,
-        'start': starttime,
-        'end': endtime
-    }
-    response = (requests.get("https://cdn.india.deltaex.org/v2/history/candles", params=params)).json()
-    df = pd.DataFrame(response.get("result", []))
-    if not df.empty and 'time' in df.columns:df["time"] = df["time"].apply(lambda ts: time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(ts)))
-    return df
-def run(period):
-    df=product_api()
-    timeframe="1m"
-    endtime=int(time.time())
-    starttime=endtime-period
-    data_per_symbol={}
-    for index, row in df.iterrows():
-        symbol = row["symbol"]
-        df_hist=historical_data_api(timeframe,symbol,starttime,endtime)
-        data_per_symbol[symbol]=df_hist
-    return data_per_symbol

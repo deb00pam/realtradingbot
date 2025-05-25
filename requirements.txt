@@ -1,5 +1,5 @@
-requests
 pandas
+websocket-client
 numpy
 fastparquet
 plotly

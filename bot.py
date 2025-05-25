@@ -40,14 +40,14 @@ def load_and_analyze(symbol):
     troughs, _ = find_peaks(-df['smooth'], distance=10, prominence=0.1)
 
     fig = go.Figure(data=[
-        go.Candlestick(x=df['time'], open=df['open'], high=df['high'],
+        go.Candlestick(x=df['timestamp'], open=df['open'], high=df['high'],
                        low=df['low'], close=df['close'],
                        increasing_line_color='green', decreasing_line_color='red')
     ])
-    fig.add_trace(go.Scatter(x=df.time, y=df['smooth'], name='Kalman Smooth', line=dict(color='blue')))
-    fig.add_trace(go.Scatter(x=df.time[peaks], y=df['smooth'].iloc[peaks],
+    fig.add_trace(go.Scatter(x=df.timestamp, y=df['smooth'], name='Kalman Smooth', line=dict(color='blue')))
+    fig.add_trace(go.Scatter(x=df.timestamp[peaks], y=df['smooth'].iloc[peaks],
                              mode='markers', marker=dict(color='red', size=10), name='Peaks'))
-    fig.add_trace(go.Scatter(x=df.time[troughs], y=df['smooth'].iloc[troughs],
+    fig.add_trace(go.Scatter(x=df.timestamp[troughs], y=df['smooth'].iloc[troughs],
                              mode='markers', marker=dict(color='green', size=10), name='Troughs'))
 
     fig.update_layout(height=600, margin=dict(t=40, b=40, l=20, r=20))
