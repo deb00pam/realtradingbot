@@ -5,7 +5,7 @@ After=network.target
 [Service]
 User=x
 WorkingDirectory=/home/x/bot
-ExecStart=/home/x/bot/venv/bin/python /home/x/bot/delta.py
+ExecStart=/home/x/bot/venv/bin/gunicorn --timeout 120 -w 2 -b 127.0.0.1:5000 bot:app
 Restart=always
 
 [Install]
